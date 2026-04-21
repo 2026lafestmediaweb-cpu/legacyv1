@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>LA Fest Legacy - Full Cinematic Universe</title>
+
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: #050514;
+      }
+      canvas {
+        display: block;
+      }
+
+      #ui {
+        position: fixed;
+        top: 10px;
+        left: 0;
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 20px;
+        color: #ffd700;
+        font-family: Arial;
+        pointer-events: none;
+        z-index: 10;
+      }
+
+      /* ---------------- MODAL ---------------- */
+      #modal {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(14px);
+        z-index: 20;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+
+      #box {
+        width: min(520px, 90vw);
+        padding: 22px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 215, 0, 0.3);
+        color: white;
+        font-family: Arial;
+      }
+
+      .year {
+        font-size: 32px;
+        color: #ffd700;
+        margin-bottom: 6px;
+      }
+
+      .title {
+        font-size: 14px;
+        opacity: 0.85;
+        margin-bottom: 10px;
+      }
+
+      .desc {
+        font-size: 13px;
+        line-height: 1.5;
+        opacity: 0.9;
+      }
+
+      .close {
+        float: right;
+        cursor: pointer;
+        color: white;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="ui">
+      <div>LA FEST LEGACY • CINEMATIC UNIVERSE</div>
+      <div>Scroll + Click Years</div>
+    </div>
+
+    <div id="modal">
+      <div id="box">
+        <div class="close" onclick="closeModal()">✕</div>
+        <div class="year" id="mYear"></div>
+        <div class="title" id="mTitle"></div>
+        <div class="desc" id="mDesc"></div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
+    <script>
+      /* ---------------- SCENE ---------------- */
+      const scene = new THREE.Scene();
+      scene.fog = new THREE.Fog(0x050514, 80, 700);
+
+      const camera = new THREE.PerspectiveCamera(
+        60,
+        innerWidth / innerHeight,
+        0.1,
+        2000,
+      );
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(innerWidth, innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      /* ---------------- LIGHT ---------------- */
+      scene.add(new THREE.AmbientLight(0x444444));
+      const light = new THREE.PointLight(0xffd700, 2);
+      light.position.set(10, 10, 10);
+      scene.add(light);
+
+      /* ---------------- YEAR DATA (OPTIONAL SAFE FALLBACK) ---------------- */
+      const yearData = {};
+
+      /* ---------------- IMAGE INDEX TIMELINE (1–26) ---------------- */
+      const items = Array.from({ length: 26 }, (_, i) => ({
+        index: i + 1,
+      }));
+
+      /* ---------------- STARFIELD ---------------- */
+      const starGeo = new THREE.BufferGeometry();
+      const starCount = 7000;
+      const starPos = [];
+
+      for (let i = 0; i < starCount; i++) {
+        starPos.push(
+          (Math.random() - 0.5) * 2200,
+          (Math.random() - 0.5) * 2200,
+          (Math.random() - 0.5) * 2200,
+        );
+      }
+
+      starGeo.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(starPos, 3),
+      );
+
+      const stars = new THREE.Points(
+        starGeo,
+        new THREE.PointsMaterial({ color: 0xffffff, size: 1 }),
+      );
+
+      scene.add(stars);
+
+      /* ---------------- PATH (CINEMATIC BLOCK SYSTEM + SPIRALS) ---------------- */
+      function path(i) {
+        const blockSize = 5;
+        const block = Math.floor(i / blockSize);
+        const local = i % blockSize;
+
+        const spacing = 75;
+        const z = -i * spacing;
+
+        const t = (local / blockSize) * Math.PI * 2;
+
+        let x = 0,
+          y = 0;
+
+        if (block === 0) {
+          x = Math.cos(t) * 18;
+          y = Math.sin(t) * 10;
+        }
+
+        if (block === 1) {
+          x = 25 + Math.cos(t) * 22;
+          y = local * 6;
+        }
+
+        if (block === 2) {
+          x = -28 + Math.sin(t) * 20;
+          y = -local * 5;
+        }
+
+        if (block === 3) {
+          x = local * 10;
+          y = Math.sin(t) * 18;
+        }
+
+        if (block >= 4) {
+          x = Math.cos(t) * 30;
+          y = Math.sin(t) * 22;
+        }
+
+        return new THREE.Vector3(x, y, z);
+      }
+
+      /* ---------------- LOGOS ---------------- */
+      const nodes = [];
+      const loader = new THREE.TextureLoader();
+
+      function fallback(n) {
+        const c = document.createElement("canvas");
+        c.width = 512;
+        c.height = 512;
+        const ctx = c.getContext("2d");
+
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, 512, 512);
+
+        ctx.strokeStyle = "#d4af37";
+        ctx.lineWidth = 10;
+        ctx.strokeRect(10, 10, 492, 492);
+
+        ctx.fillStyle = "#000";
+        ctx.font = "bold 90px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(n, 256, 260);
+
+        return new THREE.CanvasTexture(c);
+      }
+
+      function make(item, i) {
+        const geo = new THREE.PlaneGeometry(14, 14);
+        const mesh = new THREE.Mesh(geo);
+
+        mesh.userData = { index: item.index };
+
+        const imgIndex = item.index; // 🔥 1–26 mapping
+
+        loader.load(
+          `logos/${imgIndex}.png`,
+          (tex) => {
+            mesh.material = new THREE.MeshStandardMaterial({
+              map: tex,
+              metalness: 0.6,
+              roughness: 0.3,
+            });
+          },
+          undefined,
+          () => {
+            mesh.material = new THREE.MeshStandardMaterial({
+              map: fallback(imgIndex),
+              metalness: 0.1,
+              roughness: 0.8,
+            });
+          },
+        );
+
+        scene.add(mesh);
+        nodes.push(mesh);
+      }
+
+      items.forEach((it, i) => make(it, i));
+
+      /* ---------------- SCROLL ---------------- */
+      let target = 0;
+      let current = 0;
+
+      window.addEventListener("wheel", (e) => {
+        target += e.deltaY * 0.0018;
+        target = Math.max(0, Math.min(target, items.length - 1));
+      });
+
+      /* ---------------- CAMERA ---------------- */
+      let rotX = 0,
+        rotY = 0;
+      let tX = 0,
+        tY = 0;
+
+      window.addEventListener("mousemove", (e) => {
+        tY = (e.clientX / innerWidth - 0.5) * 1.2;
+        tX = (e.clientY / innerHeight - 0.5) * 0.8;
+      });
+
+      /* ---------------- CLICK SYSTEM ---------------- */
+      const ray = new THREE.Raycaster();
+      const mouse = new THREE.Vector2();
+
+      window.addEventListener("click", (e) => {
+        mouse.x = (e.clientX / innerWidth) * 2 - 1;
+        mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+
+        ray.setFromCamera(mouse, camera);
+
+        const hit = ray.intersectObjects(nodes, true);
+
+        if (hit.length) {
+          const idx = hit[0].object.userData.index;
+          openModal(idx);
+        }
+      });
+
+      /* ---------------- MODAL (SAFE GENERIC) ---------------- */
+      function openModal(idx) {
+        const data = yearData[idx] || {
+          title: `LA Fest Entry ${idx}`,
+          desc: `Archival festival memory for timeline slot ${idx}.`,
+        };
+
+        document.getElementById("modal").style.display = "flex";
+        setTimeout(
+          () => (document.getElementById("modal").style.opacity = 1),
+          10,
+        );
+
+        document.getElementById("mYear").innerText = `Entry ${idx}`;
+        document.getElementById("mTitle").innerText = data.title;
+        document.getElementById("mDesc").innerText = data.desc;
+      }
+
+      function closeModal() {
+        document.getElementById("modal").style.opacity = 0;
+        setTimeout(
+          () => (document.getElementById("modal").style.display = "none"),
+          300,
+        );
+      }
+
+      /* ---------------- ANIMATION ---------------- */
+      function animate() {
+        requestAnimationFrame(animate);
+
+        current += (target - current) * 0.05;
+
+        const i = Math.floor(current);
+        const f = current - i;
+
+        const a = path(i);
+        const b = path(i + 1);
+
+        const pos = new THREE.Vector3().lerpVectors(a, b, f);
+
+        /* STARFIELD */
+        stars.position.x = camera.position.x * 0.02;
+        stars.position.y = camera.position.y * 0.02;
+        stars.position.z = camera.position.z * 0.02;
+
+        /* LOGOS */
+        nodes.forEach((n, idx) => {
+          const p = path(idx);
+          n.position.copy(p);
+          n.lookAt(camera.position);
+        });
+
+        /* CAMERA */
+        rotX += (tX - rotX) * 0.05;
+        rotY += (tY - rotY) * 0.05;
+
+        camera.position.x = pos.x + Math.sin(rotY) * 10;
+        camera.position.y = pos.y + Math.sin(rotX) * 8 + 12;
+        camera.position.z = pos.z + 60 + Math.cos(rotY) * 10;
+
+        camera.lookAt(pos.x, pos.y, pos.z);
+
+        renderer.render(scene, camera);
+      }
+
+      animate();
+
+      /* ---------------- RESIZE ---------------- */
+      window.addEventListener("resize", () => {
+        camera.aspect = innerWidth / innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth, innerHeight);
+      });
+    </script>
+  </body>
+</html>
